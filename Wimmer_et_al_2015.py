@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
 from brian2 import *
 from brian2tools import * 
 import random as pyrandom
@@ -12,11 +7,6 @@ from numpy.random import randn as randn
 from numpy.random import rand as rand
 from scipy.signal import lfilter
 import matplotlib.pyplot as plt 
-get_ipython().run_line_magic('matplotlib', 'inline')
-
-
-# In[2]:
-
 
 #It begins! 
 def make_sensory_circuit(): 
@@ -159,9 +149,6 @@ def make_sensory_circuit():
                        'C_SE1_SE1': C_SE1_SE1, 'C_SE1_SE2': C_SE1_SE2,'C_SE2_SE1': C_SE2_SE1,'C_SE2_SE2': C_SE2_SE2, 'C_SE_SI': C_SE_SI, 'C_SI_SE': C_SI_SE, 'C_SI_SI': C_SI_SI}
 
     return groups, connections, subgroups
-
-
-# In[3]:
 
 
 #Does it matter if all the variables have the same name between functions? 
@@ -376,11 +363,6 @@ def make_integration_circuit(): #Layer 2, with some biological plausibility.
                    'C_DE1_DE1_AMPA': C_DE1_DE1_AMPA, 'C_DE2_DE2_AMPA': C_DE2_DE2_AMPA, 'C_DE1_DE2_AMPA': C_DE1_DE2_AMPA,'C_DE2_DE1_AMPA': C_DE2_DE1_AMPA, 'C_DE3_DE1_AMPA': C_DE3_DE1_AMPA, 'C_DE3_DE2_AMPA': C_DE3_DE2_AMPA, 'C_DE1_DE3_AMPA': C_DE1_DE3_AMPA, 'C_DE3_DE3_AMPA': C_DE3_DE3_AMPA, 'C_DE2_DE3_AMPA': C_DE2_DE3_AMPA, 'C_DE_DI_AMPA': C_DE_DI_AMPA, 'C_DI_DE': C_DI_DE, 'C_DI_DI': C_DI_DI }
     return groups, connections, update_nmda, subgroups 
 
-
-# In[4]:
-
-
-#Simulation cell
 def get_OU_stim(n, tau):
 # UO process in discrete time => AR(1) process
       
@@ -388,7 +370,6 @@ def get_OU_stim(n, tau):
     i = lfilter(numpy.ones(1),[1.0, -a], numpy.sqrt(1-a*a)*randn(n))   
          
     return i
-
 
 
 if __name__ == '__main__': #Okay, don't just blindly delete this part. 
@@ -556,79 +537,55 @@ if __name__ == '__main__': #Okay, don't just blindly delete this part.
     net = Network(Dgroups.values(), Sgroups.values(), Dconnections.values(), Sconnections.values(), 
                   Dnetfunctions, update_input, C_SE1_DE1, C_SE2_DE2, C_DE1_SE1, C_DE2_SE2,
                   S_DE1, S_DE2, S_SE1, S_SE2, R_DE1, R_DE2, R_SE1, R_SE2)
-    net.run(runtime) 
+    net.run(runtime, report='text') 
     
 
+    # Reproducing Figure 1b
 
-# In[9]:
-
-
-# Sensory circuit
-bins=int(20*ms/defaultclock.dt)
-binned_t=R_DE1.t[::bins]
-fig, axs = subplots(7,1, figsize=(4,9)) 
-fig.add_axes(axs[0])
-plot_raster(S_SE1.i, S_SE1.t,color=(1,0,0))
-xlim(0,runtime/ms)   
-ylim(0,len(sensoryE1))
-axs[0].set_title('Sensory circuit')
-fig.add_axes(axs[1])
-plot_raster(S_SE2.i, S_SE2.t,color=(0,0,1))
-xlim(0,runtime/ms)   
-ylim(0,len(sensoryE2))
-fig.add_axes(axs[2])
-plot_rate(binned_t, np.reshape(R_SE1.rate, (-1, bins)).mean(axis=1), color=(1,0,0)) #Less annoying 
-plot_rate(binned_t, np.reshape(R_SE2.rate, (-1, bins)).mean(axis=1), color=(0,0,1))
-yticks(range(0,30,5)) 
-xlim(0,runtime/ms)   
-ylim(0,20)
-ylabel("Rate (sp/s)")
-fig.add_axes(axs[3])
-plot_raster(S_DE1.i, S_DE1.t,color=(1,0,0))
-xlim(0,runtime/ms)   
-ylim(0,len(decisionE1))
-axs[3].set_title('Integration circuit')
-fig.add_axes(axs[4])
-plot_raster(S_DE2.i, S_DE2.t,color=(0,0,1))
-xlim(0,runtime/ms)   
-ylim(0,len(decisionE2))
-fig.add_axes(axs[5])
-plot_rate(binned_t, np.reshape(R_DE1.rate, (-1, bins)).mean(axis=1), color=(1,0,0)) 
-plot_rate(binned_t, np.reshape(R_DE2.rate, (-1, bins)).mean(axis=1), color=(0,0,1)) 
-yticks(range(0,50,10))
-#yticks(range(0,30,5)) 
-xlim(0,runtime/ms)   
-ylim(0,50)
-ylabel("Rate (sp/s)")
-fig.add_axes(axs[6])
-t = linspace(0., int(runtime/second), int(runtime/ms))
-plot(t, numpy.r_[zeros(int(stim_on/ms)), mean(i1,0)/I0, zeros(int((runtime-stim_off)/ms))], color=(1,0,0))
-plot(t, numpy.r_[zeros(int(stim_on/ms)), mean(i2,0)/I0, zeros(int((runtime-stim_off)/ms))], color=(0,0,1))
-xticks(range(0,3))
-yticks(range(0,2,1))
-xlim(0,runtime/second)
-ylim(0,1.5)
-xlabel("Time (s)")
-ylabel("Stimulus")
-for i in [0,1,3,4]:
-    axs[i].set_yticklabels([])
-for i in range(0,6):
-    axs[i].set_xticklabels([])   
-show()
+    plt.rcParams.update({'axes.spines.top': False, 'axes.spines.right': False})
+    
+    bins = int(50*ms/defaultclock.dt)  # Fig 1b states: count window T=50ms
+    binned_t = R_DE1.t[::bins]/second
+    
+    fig, axs = plt.subplots(5, 1,
+                            figsize=(3, 6.4),
+                            gridspec_kw={'height_ratios': [2, 1, 2, 1, 1]},
+                            constrained_layout=True,
+                            sharex=True)
 
 
-# In[6]:
+    # Decision circuit
+    # Using a quick&dirty way to sort spikes by firing rate
+    axs[0].plot(S_DE1.t/second, S_DE1.count[:].argsort().argsort()[S_DE1.i], ',', color='red')
+    axs[0].plot(S_DE2.t/second, S_DE2.count[:].argsort().argsort()[S_DE2.i] - 240, ',', color='blue')
+    axs[0].axis('off')
+    axs[1].plot(binned_t, np.reshape(R_DE1.rate, (-1, bins)).mean(axis=1), color='red') 
+    axs[1].plot(binned_t, np.reshape(R_DE2.rate, (-1, bins)).mean(axis=1), color='blue')
+    axs[1].text(0.05, 0.75, 'D1', color='red', transform=axs[1].transAxes)
+    axs[1].text(0.05, 0.5, 'D2', color='blue', transform=axs[1].transAxes)
+    axs[1].set_ylabel('Rate (sp s$^{-1}$)')
+    
+    # Sensory circuit 
+
+    axs[2].plot(S_SE1.t/second, S_SE1.count[:].argsort().argsort()[S_SE1.i], ',', color='red')
+    axs[2].plot(S_SE2.t/second, S_SE2.count[:].argsort().argsort()[S_SE2.i] - 800, ',', color='blue')
+    axs[2].axis('off')
+    axs[3].plot(binned_t,
+                np.reshape(R_SE1.rate, (-1, bins)).mean(axis=1),
+                color='red')
+    axs[3].plot(binned_t,
+                np.reshape(R_SE2.rate, (-1, bins)).mean(axis=1),
+                color='blue')
+    axs[3].set_ylabel('Rate (sp s$^{-1}$)')
+    axs[3].text(0.05, 0.75, 'E1', color='red', transform=axs[3].transAxes)
+    axs[3].text(0.05, 0.5, 'E2', color='blue', transform=axs[3].transAxes)
+    # Stimulus current    
+    t = linspace(0., int(runtime/second), int(runtime/ms))
+    axs[4].plot(t, numpy.r_[zeros(int(stim_on/ms)), mean(i1,0)/I0, zeros(int((runtime-stim_off)/ms))], color=(1,0,0))
+    axs[4].plot(t, numpy.r_[zeros(int(stim_on/ms)), mean(i2,0)/I0, zeros(int((runtime-stim_off)/ms))], color=(0,0,1))
+    axs[4].set_xlabel("Time (s)")
+    axs[4].set_ylabel("Stimulus\nstrength")
 
 
-fig, axs = subplots(2,1) 
-fig.add_axes(axs[0])
-brian_plot(C_SE1_DE1)
-fig.add_axes(axs[1])
-brian_plot(C_SE2_DE2)
-
-
-# In[ ]:
-
-
-
+    plt.show()
 
