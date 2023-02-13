@@ -280,80 +280,29 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     decisionE2 = decisionE[N_D1 : N_D1 + N_D2]
     decisionE3 = decisionE[N_D1 + N_D2 :]
     # DE1 to DE1
-    C_DE1_DE1_AMPA = Synapses(
-        decisionE1, decisionE1, "w: 1", on_pre="gea+=w", namespace=locals()
-    )  # Pay attention to units.
-    C_DE1_DE1_AMPA.connect()  # Connect_full and connect_one_to_one are not the same thing!
-    C_DE1_DE1_AMPA.w = w_p * gEE_AMPA / gLeakE
-    C_DE1_DE1_AMPA.delay = d
-    # DE2 to DE2
-    C_DE2_DE2_AMPA = Synapses(
-        decisionE2, decisionE2, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
-    C_DE2_DE2_AMPA.connect()
-    C_DE2_DE2_AMPA.w = w_p * gEE_AMPA / gLeakE
-    C_DE2_DE2_AMPA.delay = d
-    # DE1 to DE2
-    C_DE1_DE2_AMPA = Synapses(
-        decisionE1, decisionE2, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
-    C_DE1_DE2_AMPA.connect()
-    C_DE1_DE2_AMPA.w = w_m * gEE_AMPA / gLeakE
-    C_DE1_DE2_AMPA.delay = d
-    # DE2 to DE1
-    C_DE2_DE1_AMPA = Synapses(
-        decisionE2, decisionE1, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
-    C_DE2_DE1_AMPA.connect()
-    C_DE2_DE1_AMPA.w = w_m * gEE_AMPA / gLeakE
-    C_DE2_DE1_AMPA.delay = d
-    # DE3 to DE1
-    C_DE3_DE1_AMPA = Synapses(
-        decisionE3, decisionE1, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
-    C_DE3_DE1_AMPA.connect()
-    C_DE3_DE1_AMPA.w = w_m * gEE_AMPA / gLeakE
-    C_DE3_DE1_AMPA.delay = d
-    # DE3 to DE2
-    C_DE3_DE2_AMPA = Synapses(
-        decisionE3, decisionE2, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
-    C_DE3_DE2_AMPA.connect()
-    C_DE3_DE2_AMPA.w = w_m * gEE_AMPA / gLeakE
-    C_DE3_DE2_AMPA.delay = d
-    # DE1 to DE3
-    C_DE1_DE3_AMPA = Synapses(
-        decisionE1, decisionE3, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
-    C_DE1_DE3_AMPA.connect()
-    C_DE1_DE3_AMPA.w = gEE_AMPA / gLeakE
-    C_DE1_DE3_AMPA.delay = d
-    # DE2 to DE3
-    C_DE2_DE3_AMPA = Synapses(
-        decisionE2, decisionE3, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
-    C_DE2_DE3_AMPA.connect()
-    C_DE2_DE3_AMPA.w = gEE_AMPA / gLeakE
-    C_DE2_DE3_AMPA.delay = d
-    # DE3 to DE3
-    C_DE3_DE3_AMPA = Synapses(
-        decisionE3, decisionE3, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
-    C_DE3_DE3_AMPA.connect()
-    C_DE3_DE3_AMPA.w = gEE_AMPA / gLeakE
-    C_DE3_DE3_AMPA.delay = d
+    C_DE_DE_AMPA = Synapses(decisionE, decisionE, "w: 1", on_pre="gea+=w")
+    C_DE_DE_AMPA.connect()
+    C_DE_DE_AMPA.delay = d
+    C_DE_DE_AMPA.w[decisionE1, decisionE1] = w_p * gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w[decisionE2, decisionE2] = w_p * gEE_AMPA / gLeakE
+
+    C_DE_DE_AMPA.w[decisionE1, decisionE2] = w_m * gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w[decisionE2, decisionE1] = w_m * gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w[decisionE3, decisionE1] = w_m * gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w[decisionE3, decisionE2] = w_m * gEE_AMPA / gLeakE
+
+    C_DE_DE_AMPA.w[decisionE1, decisionE3] = gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w[decisionE2, decisionE3] = gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w[decisionE3, decisionE3] = gEE_AMPA / gLeakE
+
     # DE to DI
-    C_DE_DI_AMPA = Synapses(
-        decisionE, decisionI, "w: 1", on_pre="gea+=w", namespace=locals()
-    )
+    C_DE_DI_AMPA = Synapses(decisionE, decisionI, "w: 1", on_pre="gea+=w")
     C_DE_DI_AMPA.connect()
-    # C_DE_DI_AMPA.connect(j='i')
     C_DE_DI_AMPA.w = gEI_AMPA / gLeakI
     C_DE_DI_AMPA.delay = d
+
     # NMDA
-    selfnmda = Synapses(
-        decisionE, decisionE, "w : 1", on_pre="xpre+=w", namespace=locals()
-    )
+    selfnmda = Synapses(decisionE, decisionE, "w : 1", on_pre="xpre+=w")
     selfnmda.connect(j="i")
     selfnmda.w = 1.0
     selfnmda.delay = d
@@ -396,7 +345,8 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     C_DI_DI.connect()
     C_DI_DI.w = gII_GABA / gLeakI
     C_DI_DI.delay = d
-    # X1 to E1
+
+    # X to E
     C_X1_E1 = Synapses(
         extinputE1, decisionE1, "w : 1", on_pre="gea+=w", namespace=locals()
     )
@@ -439,15 +389,7 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
         "extconnE2": C_X2_E2,
         "extconnE3": C_X3_E3,
         "extconnI": C_XI_I,
-        "C_DE1_DE1_AMPA": C_DE1_DE1_AMPA,
-        "C_DE2_DE2_AMPA": C_DE2_DE2_AMPA,
-        "C_DE1_DE2_AMPA": C_DE1_DE2_AMPA,
-        "C_DE2_DE1_AMPA": C_DE2_DE1_AMPA,
-        "C_DE3_DE1_AMPA": C_DE3_DE1_AMPA,
-        "C_DE3_DE2_AMPA": C_DE3_DE2_AMPA,
-        "C_DE1_DE3_AMPA": C_DE1_DE3_AMPA,
-        "C_DE3_DE3_AMPA": C_DE3_DE3_AMPA,
-        "C_DE2_DE3_AMPA": C_DE2_DE3_AMPA,
+        "C_DE_DE_AMPA": C_DE_DE_AMPA,
         "C_DE_DI_AMPA": C_DE_DI_AMPA,
         "C_DI_DE": C_DI_DE,
         "C_DI_DI": C_DI_DI,
