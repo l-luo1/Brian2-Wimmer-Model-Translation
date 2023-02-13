@@ -305,16 +305,18 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     selfnmda.w = 1.0
     selfnmda.delay = d
 
-    # Marcel Steinberg's fix for the NMDA synapses
+    spre_all = np.asarray(decisionE.spre)
+    genE_all = np.asarray(decisionE.gen)
+    genI_all = np.asarray(decisionI.gen)
     @network_operation(when="start")  # NMDA calculations
     def update_nmda():
-        sE1 = sum(decisionE1.spre[:])
-        sE2 = sum(decisionE2.spre[:])
-        sE3 = sum(decisionE3.spre[:])
-        decisionE1.gen[:] = gEE_NMDA / gLeakE * (w_p * sE1 + w_m * sE2 + w_m * sE3)
-        decisionE2.gen[:] = gEE_NMDA / gLeakE * (w_m * sE1 + w_p * sE2 + w_m * sE3)
-        decisionE3.gen[:] = gEE_NMDA / gLeakE * (sE1 + sE2 + sE3)
-        decisionI.gen[:] = gEI_NMDA / gLeakI * (sE1 + sE2 + sE3)
+        sE1 = np.sum(spre_all[:N_D1])
+        sE2 = np.sum(spre_all[N_D1:N_D1 + N_D2])
+        sE3 = np.sum(spre_all[N_D1 + N_D2:])
+        genE_all[:N_D1] = gEE_NMDA / gLeakE * (w_p * sE1 + w_m * sE2 + w_m * sE3)
+        genE_all[N_D1:N_D1 + N_D2] = gEE_NMDA / gLeakE * (w_m * sE1 + w_p * sE2 + w_m * sE3)
+        genE_all[N_D1 + N_D2:] = gEE_NMDA / gLeakE * (sE1 + sE2 + sE3)
+        genI_all[:] = gEI_NMDA / gLeakI * (sE1 + sE2 + sE3)
 
     # E1_nmda = asarray(decisionE1.spre)
     # E2_nmda = asarray(decisionE2.spre)
