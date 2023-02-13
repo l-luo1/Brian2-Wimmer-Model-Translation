@@ -60,15 +60,15 @@ def make_sensory_circuit():
         dgea/dt = (ye-gea)*(1.0/tau_decay)        : 1
         dye/dt = -ye*(1.0/tau_rise)               : 1     
         dgi/dt = (yi-gi)*(1.0/tau_decay)          : 1
-        dyi/dt = -yi*(1.0/tau_rise)               : 1     
-        I : amp
+        dyi/dt = -yi*(1.0/tau_rise)               : 1
         tau : second
         Cm : farad 
         """
     # You cannot name a variable xi because that's what all the noise is named.
     sensoryE = NeuronGroup(
         N_E,
-        model=eqs,
+        model=Equations(eqs) +
+              Equations("I = int(t>=stim_on and t<stim_off) * input_current(t-stim_on, i) : amp"),
         method="euler",
         namespace=locals(),
         threshold="V>Vt",
@@ -77,7 +77,7 @@ def make_sensory_circuit():
     )  # Excitatory neurons.
     sensoryI = NeuronGroup(
         N_I,
-        model=eqs,
+        model=Equations(eqs) + Equations("I : amp (constant)"),  # No input current
         method="euler",
         namespace=locals(),
         threshold="V>Vt",
@@ -88,8 +88,6 @@ def make_sensory_circuit():
     sensoryE.Cm = CmE
     sensoryI.tau = CmI / gLeakI
     sensoryI.Cm = CmI
-    sensoryE.I = 0.0
-    sensoryI.I = 0.0
     sensoryE1 = sensoryE[:N_E1]
     sensoryE2 = sensoryE[N_E2:]  # How to make sub-populations of neurons
     external = PoissonGroup(N_X, rates=nu_ext)
@@ -507,27 +505,14 @@ if __name__ == "__main__":  # Okay, don't just blindly delete this part.
     zk2 = get_OU_stim(int(stim_duration / ms * len(sensoryE2)), tau_stim / ms)
     zk2 = numpy.asarray(zk2).reshape(len(sensoryE2), int(stim_duration / ms))
 
-    # stimulus (time series with dt = 1ms)
-    # most general case: different input to each neuron in each time step
     i1 = I0 * (1 + c * mu_E1 + sigma_stim * z1 + sigma_ind * zk1)
     i2 = I0 * (1 + c * mu_E2 + sigma_stim * z2 + sigma_ind * zk2)
-    ii = numpy.zeros(
-        (len(sensoryI), int(stim_duration / ms))
-    )  # no current input to inh population
+
+    #
+    input_current = TimedArray(np.vstack([i1, i2]).T*amp, dt=1 * ms)
 
     # Stimulus-related external current input
     defaultclock.dt = 0.1 * ms
-
-    @network_operation(defaultclock)
-    def update_input():
-        if defaultclock.t >= stim_on and defaultclock.t < stim_off:  # Does this fix it?
-            sensoryE1.I = i1[:, int((defaultclock.t - stim_on) / (1 * ms))]  # * amp
-            sensoryE2.I = i2[:, int((defaultclock.t - stim_on) / (1 * ms))]  # * amp
-            sensoryI.I = ii[:, int((defaultclock.t - stim_on) / (1 * ms))]  # * amp
-        else:
-            sensoryE1.I = 0 * nA
-            sensoryE2.I = 0 * nA
-            sensoryI.I = 0 * nA
 
     # --- set seed of random number generator to a different value in each run
     np_seed = int(1587.47)
@@ -578,7 +563,6 @@ if __name__ == "__main__":  # Okay, don't just blindly delete this part.
         Dconnections.values(),
         Sconnections.values(),
         Dnetfunctions,
-        update_input,
         C_SE1_DE1,
         C_SE2_DE2,
         C_DE1_SE1,
@@ -592,7 +576,8 @@ if __name__ == "__main__":  # Okay, don't just blindly delete this part.
         R_SE1,
         R_SE2,
     )
-    net.run(runtime, report="text")
+    net.run(runtime, report="text", profile=True)
+    print(profiling_summary(net))
 
     # Reproducing Figure 1b
 
