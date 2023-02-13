@@ -242,15 +242,24 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     dgi/dt = -gi/(tau_GABA) : 1
     dspre/dt = -spre/(tau_NMDA_decay)+alpha_NMDA*xpre*(1-spre) : 1
     dxpre/dt= -xpre/(tau_NMDA_rise) : 1
-    gen : 1
+    gen = gEE_NMDA/gLeakE*(w_1 * sE1 + w_2 * sE2 + w_3 * sE3) : 1
     tau : second
+    w_1 : 1 (constant)
+    w_2 : 1 (constant)
+    w_3 : 1 (constant)
+    sE1 : 1 (linked)
+    sE2 : 1 (linked)
+    sE3 : 1 (linked)
         """
     eqsI = """
         dV/dt = (-gea*(V-VrevE) - gen*(V-VrevE)/(1.0+exp(-V/mV*0.062)/3.57) - gi*(V-VrevI) - (V-Vl)) / (tau): volt (unless refractory)
         dgea/dt = -gea/(tau_AMPA) : 1
         dgi/dt = -gi/(tau_GABA) : 1
-        gen : 1
+        gen = gEI_NMDA/gLeakI * (sE1 + sE2 + sE3) : 1
         tau : second
+        sE1 : 1 (linked)
+        sE2 : 1 (linked)
+        sE3 : 1 (linked)
         """
 
     # Set up the integration circuit
@@ -300,40 +309,76 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     C_DE_DI_AMPA.delay = d
 
     # NMDA
-    selfnmda = Synapses(decisionE, decisionE, "w : 1", on_pre="xpre+=w")
+    selfnmda = Synapses(decisionE, decisionE, on_pre="xpre += 1")
     selfnmda.connect(j="i")
-    selfnmda.w = 1.0
     selfnmda.delay = d
 
-    spre_all = np.asarray(decisionE.spre)
-    genE_all = np.asarray(decisionE.gen)
-    genI_all = np.asarray(decisionI.gen)
-    @network_operation(when="start")  # NMDA calculations
-    def update_nmda():
-        sE1 = np.sum(spre_all[:N_D1])
-        sE2 = np.sum(spre_all[N_D1:N_D1 + N_D2])
-        sE3 = np.sum(spre_all[N_D1 + N_D2:])
-        genE_all[:N_D1] = gEE_NMDA / gLeakE * (w_p * sE1 + w_m * sE2 + w_m * sE3)
-        genE_all[N_D1:N_D1 + N_D2] = gEE_NMDA / gLeakE * (w_m * sE1 + w_p * sE2 + w_m * sE3)
-        genE_all[N_D1 + N_D2:] = gEE_NMDA / gLeakE * (sE1 + sE2 + sE3)
-        genI_all[:] = gEI_NMDA / gLeakI * (sE1 + sE2 + sE3)
+    # dummy population to store summed pre-synaptic NMDA activities
+    nmda_sum = NeuronGroup(1, """
+                              sE1 : 1
+                              sE2 : 1
+                              sE3 : 1""")
+    calc_nmda_sum_E1 = Synapses(decisionE1, nmda_sum,
+                                "sE1_post = spre_pre : 1 (summed)")
+    calc_nmda_sum_E1.connect()
+    calc_nmda_sum_E2 = Synapses(decisionE2, nmda_sum,
+                                "sE2_post = spre_pre : 1 (summed)")
+    calc_nmda_sum_E2.connect()
+    calc_nmda_sum_E3 = Synapses(decisionE3, nmda_sum,
+                                "sE3_post = spre_pre : 1 (summed)")
+    calc_nmda_sum_E3.connect()
 
-    # E1_nmda = asarray(decisionE1.spre)
-    # E2_nmda = asarray(decisionE2.spre)
-    # E3_nmda = asarray(decisionE3.spre)
-    # E1_gen = asarray(decisionE1.gen)
-    # E2_gen = asarray(decisionE2.gen)
-    # E3_gen = asarray(decisionE3.gen)
-    # I_gen = asarray(decisionI.gen)
-    # @network_operation(when='start') #NMDA calculations. Is this what isn't working? Yes.
+    decisionE.sE1 = linked_var(nmda_sum, "sE1")
+    decisionE.sE2 = linked_var(nmda_sum, "sE2")
+    decisionE.sE3 = linked_var(nmda_sum, "sE3")
+    decisionI.sE1 = linked_var(nmda_sum, "sE1")
+    decisionI.sE2 = linked_var(nmda_sum, "sE2")
+    decisionI.sE3 = linked_var(nmda_sum, "sE3")
+
+    decisionE.w_1[decisionE1] = w_p
+    decisionE.w_2[decisionE1] = w_m
+    decisionE.w_3[decisionE1] = w_m
+
+    decisionE.w_1[decisionE2] = w_m
+    decisionE.w_2[decisionE2] = w_p
+    decisionE.w_3[decisionE2] = w_m
+
+    decisionE.w_1[decisionE3] = 1.0
+    decisionE.w_2[decisionE3] = 1.0
+    decisionE.w_3[decisionE3] = 1.0
+
+    # NMDA_sum_E = Synapses(decisionE, decisionE,
+    #                     """
+    #                     w : 1
+    #                     gen_post = gEE_NMDA/gLeakE*w*spre_pre : 1 (summed)
+    #                     """, name='nmda_sum_E', namespace=locals())
+    # NMDA_sum_E.connect()
+    # NMDA_sum_E.w[decisionE1, decisionE1] = w_p
+    # NMDA_sum_E.w[decisionE2, decisionE1] = w_m
+    # NMDA_sum_E.w[decisionE3, decisionE1] = w_m
+    # NMDA_sum_E.w[decisionE1, decisionE2] = w_m
+    # NMDA_sum_E.w[decisionE2, decisionE2] = w_p
+    # NMDA_sum_E.w[decisionE3, decisionE2] = w_m
+    # NMDA_sum_E.w[: , decisionE3] = 1.0
+    #
+    # NMDA_sum_I = Synapses(decisionE, decisionI,
+    #                     "gen_post = gEE_NMDA/gLeakI*spre_pre : 1 (summed)",
+    #                     name='nmda_sum_I', namespace=locals())
+    # NMDA_sum_I.connect()
+    #
+    # spre_all = np.asarray(decisionE.spre)
+    # genE_all = np.asarray(decisionE.gen)
+    # genI_all = np.asarray(decisionI.gen)
+    # @network_operation(when="start")  # NMDA calculations
     # def update_nmda():
-    # sE1 = sum(E1_nmda)
-    # sE2 = sum(E2_nmda)
-    # sE3 = sum(E3_nmda)
-    # E1_gen[:] = gEE_NMDA / gLeakE * (w_p*sE1 + w_m*sE2 + w_m*sE3)
-    # E2_gen[:] = gEE_NMDA / gLeakE * (w_m*sE1 + w_p*sE2 + w_m*sE3)
-    # E3_gen[:] = gEE_NMDA / gLeakE * (sE1 + sE2 + sE3)
-    # I_gen[:] = gEI_NMDA / gLeakI * (sE1 + sE2 + sE3)
+    #     sE1 = np.sum(spre_all[:N_D1])
+    #     sE2 = np.sum(spre_all[N_D1:N_D1 + N_D2])
+    #     sE3 = np.sum(spre_all[N_D1 + N_D2:])
+    #     genE_all[:N_D1] = gEE_NMDA / gLeakE * (w_p * sE1 + w_m * sE2 + w_m * sE3)
+    #     genE_all[N_D1:N_D1 + N_D2] = gEE_NMDA / gLeakE * (w_m * sE1 + w_p * sE2 + w_m * sE3)
+    #     genE_all[N_D1 + N_D2:] = gEE_NMDA / gLeakE * (sE1 + sE2 + sE3)
+    #     genI_all[:] = gEI_NMDA / gLeakI * (sE1 + sE2 + sE3)
+
 
     # DI to DE
     C_DI_DE = Synapses(decisionI, decisionE, "w: 1", on_pre="gi+=w", namespace=locals())
@@ -381,6 +426,7 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
         "DX2": extinputE2,
         "DX3": extinputE3,
         "DXI": extinputI,
+        'nmda_sum': nmda_sum
     }
     subgroups = {"DE1": decisionE1, "DE2": decisionE2, "DE3": decisionE3}
     connections = {
@@ -393,8 +439,11 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
         "C_DE_DI_AMPA": C_DE_DI_AMPA,
         "C_DI_DE": C_DI_DE,
         "C_DI_DI": C_DI_DI,
+        "calc_nmda_sum_E1": calc_nmda_sum_E1,
+        "calc_nmda_sum_E2": calc_nmda_sum_E2,
+        "calc_nmda_sum_E3": calc_nmda_sum_E3,
     }
-    return groups, connections, update_nmda, subgroups
+    return groups, connections, subgroups
 
 
 def get_OU_stim(n, tau):
@@ -427,7 +476,7 @@ if __name__ == "__main__":  # Okay, don't just blindly delete this part.
     pyrandom.seed(connect_seed)
 
     # Integration circuit
-    Dgroups, Dconnections, Dnetfunctions, Dsubgroups = make_integration_circuit()
+    Dgroups, Dconnections, Dsubgroups = make_integration_circuit()
 
     # get populations from the integrations circuit
     decisionE = Dgroups["DE"]
@@ -522,12 +571,6 @@ if __name__ == "__main__":  # Okay, don't just blindly delete this part.
     py_seed = int(4736.28)
     pyrandom.seed(py_seed)
 
-    # ---- set initial conditions (random)
-    # decisionE.gen = decisionE.gen * (1 + 0.2 * rand(decisionE.__len__())) #This is a different initial condition.
-    # decisionI.gen = decisionI.gen * (1 + 0.2 * rand(decisionI.__len__()))
-    # It is not an initial condition problem.
-    decisionE.gen = "1+0.2*rand()"  # Syntax stuff
-    decisionI.gen = "1+0.2*rand()"
     # decisionE.V = decisionE.V + rand(decisionE.__len__()) * 2 * mV
     # decisionI.V = decisionI.V + rand(decisionI.__len__()) * 2 * mV #Removes the 'all neurons spike at t=0' problem
     decisionE.V = "-52*mV + rand()*2*mV"
@@ -564,7 +607,7 @@ if __name__ == "__main__":  # Okay, don't just blindly delete this part.
         Sgroups.values(),
         Dconnections.values(),
         Sconnections.values(),
-        Dnetfunctions,
+        # Dnetfunctions,
         C_SE1_DE1,
         C_SE2_DE2,
         C_DE1_SE1,
