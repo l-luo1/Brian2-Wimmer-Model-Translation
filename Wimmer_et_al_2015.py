@@ -8,6 +8,7 @@ from numpy.random import rand as rand
 from scipy.signal import lfilter
 import matplotlib.pyplot as plt
 
+set_device('cpp_standalone')
 
 # It begins!
 def make_sensory_circuit():
@@ -61,6 +62,7 @@ def make_sensory_circuit():
         dye/dt = -ye*(1.0/tau_rise)               : 1     
         dgi/dt = (yi-gi)*(1.0/tau_decay)          : 1
         dyi/dt = -yi*(1.0/tau_rise)               : 1
+        group_label : integer (constant)
         tau : second
         Cm : farad 
         """
@@ -90,6 +92,8 @@ def make_sensory_circuit():
     sensoryI.Cm = CmI
     sensoryE1 = sensoryE[:N_E1]
     sensoryE2 = sensoryE[N_E2:]  # How to make sub-populations of neurons
+    sensoryE1.group_label = 1
+    sensoryE2.group_label = 2
     external = PoissonGroup(N_X, rates=nu_ext)
     external1 = external[:N_X1]
     external2 = external[N_X2:]
@@ -99,21 +103,11 @@ def make_sensory_circuit():
     C_SE_SE.connect(p=0.2)
     C_SE_SE.delay = "rand()*1*ms + 0.5*ms"
 
-    # E1 to E1 synapses
     C_SE_SE.w[
-        sensoryE1, sensoryE1
+        "group_label_pre == group_label_post"
     ] = "w_p*gEE/gLeakE*clip(1.0 + 0.5 * randn(), 0.0, inf)"
-    # E2 to E2 synapses
     C_SE_SE.w[
-        sensoryE2, sensoryE2
-    ] = "w_p*gEE/gLeakE*clip(1.0 + 0.5 * randn(), 0.0, inf)"
-    # E1 to E2 synapses
-    C_SE_SE.w[
-        sensoryE1, sensoryE2
-    ] = "w_m*gEE/gLeakE*clip(1.0 + 0.5 * randn(), 0.0, inf)"
-    # E2 to E1 synapses
-    C_SE_SE.w[
-        sensoryE2, sensoryE1
+        "group_label_pre != group_label_post"
     ] = "w_m*gEE/gLeakE*clip(1.0 + 0.5 * randn(), 0.0, inf)"
 
     # E to I synapses
@@ -244,6 +238,7 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     dxpre/dt= -xpre/(tau_NMDA_rise) : 1
     gen = gEE_NMDA/gLeakE*(w_1 * sE1 + w_2 * sE2 + w_3 * sE3) : 1
     tau : second
+    group_label : integer (constant)
     w_1 : 1 (constant)
     w_2 : 1 (constant)
     w_3 : 1 (constant)
@@ -286,21 +281,17 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     decisionE1 = decisionE[:N_D1]
     decisionE2 = decisionE[N_D1 : N_D1 + N_D2]
     decisionE3 = decisionE[N_D1 + N_D2 :]
+    decisionE1.group_label = 1
+    decisionE2.group_label = 2
+    decisionE3.group_label = 3
     # DE1 to DE1
     C_DE_DE_AMPA = Synapses(decisionE, decisionE, "w: 1", on_pre="gea+=w")
     C_DE_DE_AMPA.connect()
     C_DE_DE_AMPA.delay = d
-    C_DE_DE_AMPA.w[decisionE1, decisionE1] = w_p * gEE_AMPA / gLeakE
-    C_DE_DE_AMPA.w[decisionE2, decisionE2] = w_p * gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w["group_label_pre == group_label_post"] = w_p * gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w["group_label_pre != group_label_post"] = w_m * gEE_AMPA / gLeakE
 
-    C_DE_DE_AMPA.w[decisionE1, decisionE2] = w_m * gEE_AMPA / gLeakE
-    C_DE_DE_AMPA.w[decisionE2, decisionE1] = w_m * gEE_AMPA / gLeakE
-    C_DE_DE_AMPA.w[decisionE3, decisionE1] = w_m * gEE_AMPA / gLeakE
-    C_DE_DE_AMPA.w[decisionE3, decisionE2] = w_m * gEE_AMPA / gLeakE
-
-    C_DE_DE_AMPA.w[decisionE1, decisionE3] = gEE_AMPA / gLeakE
-    C_DE_DE_AMPA.w[decisionE2, decisionE3] = gEE_AMPA / gLeakE
-    C_DE_DE_AMPA.w[decisionE3, decisionE3] = gEE_AMPA / gLeakE
+    C_DE_DE_AMPA.w["group_label_post == 3"] = gEE_AMPA / gLeakE
 
     # DE to DI
     C_DE_DI_AMPA = Synapses(decisionE, decisionI, "w: 1", on_pre="gea+=w")
@@ -335,17 +326,18 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     decisionI.sE2 = linked_var(nmda_sum, "sE2")
     decisionI.sE3 = linked_var(nmda_sum, "sE3")
 
-    decisionE.w_1[decisionE1] = w_p
-    decisionE.w_2[decisionE1] = w_m
-    decisionE.w_3[decisionE1] = w_m
+    decisionE.w_1['group_label == 1'] = w_p
+    decisionE.w_2['group_label == 1'] = w_m
+    decisionE.w_3['group_label == 1'] = w_m
 
-    decisionE.w_1[decisionE2] = w_m
-    decisionE.w_2[decisionE2] = w_p
-    decisionE.w_3[decisionE2] = w_m
+    decisionE.w_1['group_label == 2'] = w_m
+    decisionE.w_2['group_label == 2'] = w_p
+    decisionE.w_3['group_label == 2'] = w_m
 
-    decisionE.w_1[decisionE3] = 1.0
-    decisionE.w_2[decisionE3] = 1.0
-    decisionE.w_3[decisionE3] = 1.0
+    decisionE.w_1['group_label == 3'] = 1.0
+    decisionE.w_2['group_label == 3'] = 1.0
+    decisionE.w_3['group_label == 3'] = 1.0
+
 
     # NMDA_sum_E = Synapses(decisionE, decisionE,
     #                     """
