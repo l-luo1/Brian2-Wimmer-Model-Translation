@@ -277,24 +277,21 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     decisionE2.group_label = 2
     decisionE3.group_label = 3
     # DE1 to DE1
-    C_DE_DE_AMPA = Synapses(decisionE, decisionE, "w: 1", on_pre="gea+=w")
+    C_DE_DE_AMPA = Synapses(decisionE, decisionE, "w: 1", on_pre="gea+=w", delay=d)
     C_DE_DE_AMPA.connect()
-    C_DE_DE_AMPA.delay = d
     C_DE_DE_AMPA.w["group_label_pre == group_label_post"] = w_p * gEE_AMPA / gLeakE
     C_DE_DE_AMPA.w["group_label_pre != group_label_post"] = w_m * gEE_AMPA / gLeakE
 
     C_DE_DE_AMPA.w["group_label_post == 3"] = gEE_AMPA / gLeakE
 
     # DE to DI
-    C_DE_DI_AMPA = Synapses(decisionE, decisionI, "w: 1", on_pre="gea+=w")
+    C_DE_DI_AMPA = Synapses(decisionE, decisionI, "w: 1", on_pre="gea+=w", delay=d)
     C_DE_DI_AMPA.connect()
     C_DE_DI_AMPA.w = gEI_AMPA / gLeakI
-    C_DE_DI_AMPA.delay = d
 
     # NMDA
-    selfnmda = Synapses(decisionE, decisionE, on_pre="xpre += 1")
+    selfnmda = Synapses(decisionE, decisionE, on_pre="xpre += 1", delay=d)
     selfnmda.connect(j="i")
-    selfnmda.delay = d
 
     # dummy population to store summed pre-synaptic NMDA activities
     nmda_sum = NeuronGroup(1, """
@@ -331,44 +328,41 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     decisionE.w_3['group_label == 3'] = 1.0
 
     # DI to DE
-    C_DI_DE = Synapses(decisionI, decisionE, "w: 1", on_pre="gi+=w", namespace=locals())
+    C_DI_DE = Synapses(
+        decisionI, decisionE, on_pre="gi += gIE_GABA / gLeakE", delay=d, namespace=locals()
+    )
     C_DI_DE.connect()
-    C_DI_DE.w = gIE_GABA / gLeakE
-    C_DI_DE.delay = d
+
     # DI to DI
-    C_DI_DI = Synapses(decisionI, decisionI, "w: 1", on_pre="gi+=w", namespace=locals())
+    C_DI_DI = Synapses(
+        decisionI, decisionI, on_pre="gi += gII_GABA / gLeakI", delay=d, namespace=locals()
+    )
     C_DI_DI.connect()
-    C_DI_DI.w = gII_GABA / gLeakI
-    C_DI_DI.delay = d
 
     # X to E
     C_X1_E1 = Synapses(
-        extinputE1, decisionE1, "w : 1", on_pre="gea+=w", namespace=locals()
+        extinputE1, decisionE1, on_pre="gea += gextE / gLeakE", delay=d, namespace=locals()
     )
     C_X1_E1.connect(j="i")
-    C_X1_E1.w = gextE / gLeakE  # BE CAREFUL!
-    C_X1_E1.delay = d
+
     # X2 to E2
     C_X2_E2 = Synapses(
-        extinputE2, decisionE2, "w : 1", on_pre="gea+=w", namespace=locals()
+        extinputE2, decisionE2, on_pre="gea += gextE / gLeakE", delay=d, namespace=locals()
     )
     C_X2_E2.connect(j="i")
-    C_X2_E2.w = gextE / gLeakE
-    C_X2_E2.delay = d
+
     # X3 to E3
     C_X3_E3 = Synapses(
-        extinputE3, decisionE3, "w : 1", on_pre="gea+=w", namespace=locals()
+        extinputE3, decisionE3, on_pre="gea += gextE / gLeakE", delay=d, namespace=locals()
     )
     C_X3_E3.connect(j="i")
-    C_X3_E3.w = gextE / gLeakE
-    C_X3_E3.delay = d
+
     # XI to I
     C_XI_I = Synapses(
-        extinputI, decisionI, "w : 1", on_pre="gea+=w", namespace=locals()
+        extinputI, decisionI, on_pre="gea += gextI / gLeakI", delay=d, namespace=locals()
     )
     C_XI_I.connect(j="i")
-    C_XI_I.w = gextI / gLeakI
-    C_XI_I.delay = d
+
     groups = {
         "DE": decisionE,
         "DI": decisionI,
