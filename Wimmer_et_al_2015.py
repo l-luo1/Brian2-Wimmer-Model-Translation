@@ -37,10 +37,10 @@ def make_sensory_circuit():
     gextI = 1.7076 * nS  # Weight of external to inhibitory synapses
 
     # Neuron model
-    CmE = 0.25 * nF  # Membrane capacitance of excitatory neurons
-    CmI = 0.25 * nF  # Membrane capacitance of inhibitory neurons
-    gLeakE = 16.7 * nS  # Leak conductance of excitatory neurons
-    gLeakI = 16.7 * nS  # Leak conductance of inhibitory neurons
+    Cm = 0.25 * nF  # Membrane capacitance
+    gLeak = 16.7 * nS  # Leak conductance
+    tau = Cm / gLeak
+
     Vl = -70.0 * mV  # Resting potential
     Vt = -50.0 * mV  # Spiking threshold
     Vr = -60.0 * mV  # Reset potential
@@ -63,8 +63,6 @@ def make_sensory_circuit():
         dgi/dt = (yi-gi)*(1.0/tau_decay)          : 1
         dyi/dt = -yi*(1.0/tau_rise)               : 1
         group_label : integer (constant)
-        tau : second
-        Cm : farad 
         """
     # You cannot name a variable xi because that's what all the noise is named.
     sensoryE = NeuronGroup(
@@ -86,10 +84,6 @@ def make_sensory_circuit():
         reset="V=Vr",
         refractory=tau_refI,
     )  # Inhibitory neurons
-    sensoryE.tau = CmE / gLeakE
-    sensoryE.Cm = CmE
-    sensoryI.tau = CmI / gLeakI
-    sensoryI.Cm = CmI
     sensoryE1 = sensoryE[:N_E1]
     sensoryE2 = sensoryE[N_E2:]  # How to make sub-populations of neurons
     sensoryE1.group_label = 1
@@ -105,37 +99,37 @@ def make_sensory_circuit():
 
     C_SE_SE.w[
         "group_label_pre == group_label_post"
-    ] = "w_p*gEE/gLeakE*clip(1.0 + 0.5 * randn(), 0.0, inf)"
+    ] = "w_p*gEE/gLeak*clip(1.0 + 0.5 * randn(), 0.0, inf)"
     C_SE_SE.w[
         "group_label_pre != group_label_post"
-    ] = "w_m*gEE/gLeakE*clip(1.0 + 0.5 * randn(), 0.0, inf)"
+    ] = "w_m*gEE/gLeak*clip(1.0 + 0.5 * randn(), 0.0, inf)"
 
     # E to I synapses
     C_SE_SI = Synapses(sensoryE, sensoryI, "w: 1", on_pre="ye+=w")
     C_SE_SI.connect(p=0.2)
-    C_SE_SI.w = "gEI/gLeakI*clip(1.0 + 0.5 * randn(), 0.0, inf)"
+    C_SE_SI.w = "gEI/gLeak*clip(1.0 + 0.5 * randn(), 0.0, inf)"
     C_SE_SI.delay = "rand()*1*ms + 0.5*ms"
     # I to E synapses
     C_SI_SE = Synapses(sensoryI, sensoryE, "w: 1", on_pre="yi+=w")
     C_SI_SE.connect(p=0.2)
-    C_SI_SE.w = "gIE/gLeakE*clip(1.0 + 0.5 * randn(), 0.0, inf)"
+    C_SI_SE.w = "gIE/gLeak*clip(1.0 + 0.5 * randn(), 0.0, inf)"
     C_SI_SE.delay = "rand()*0.8*ms + 0.1*ms"
     # I to I synapses
     C_SI_SI = Synapses(sensoryI, sensoryI, "w: 1", on_pre="yi+=w")
     C_SI_SI.connect(p=0.2)
-    C_SI_SI.w = "gII/gLeakI*clip(1.0 + 0.5* randn(), 0.0, inf)"
+    C_SI_SI.w = "gII/gLeak*clip(1.0 + 0.5* randn(), 0.0, inf)"
     C_SI_SI.delay = "rand()*0.8*ms + 0.1*ms"
     # X1 to E1 synapses
 
     C_SX_SE = Synapses(external, sensoryE, "w: 1", on_pre="ye+=w")
     C_SX_SE.connect(p=p_x * (1 + alpha_x))
     C_SX_SE.delay = 'rand()*1*ms + 0.5*ms'
-    C_SX_SE.w = "gextE/gLeakE*clip(1.0 + 0.5 * randn(), 0.0, inf)"
+    C_SX_SE.w = "gextE/gLeak*clip(1.0 + 0.5 * randn(), 0.0, inf)"
 
     # X to I synapses
     C_SX_SI = Synapses(external, sensoryI, "w: 1", on_pre="ye+=w")
     C_SX_SI.connect(p=p_x)
-    C_SX_SI.w = "gextI/gLeakI*clip(1.0 + 0.5 * randn(), 0.0, inf)"
+    C_SX_SI.w = "gextI/gLeak*clip(1.0 + 0.5 * randn(), 0.0, inf)"
     C_SX_SI.delay = "rand()*1*ms + 0.5*ms"
 
     # Return the sensory circuit
@@ -200,6 +194,8 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     CmI = 0.2 * nF  # Membrane capacitance of inhibitory neurons
     gLeakE = 25.0 * nS  # Leak conductance of excitatory neurons
     gLeakI = 20.0 * nS  # Leak conductance of inhibitory neurons
+    tauE = CmE / gLeakE  # Membrane time constant of excitatory neurons
+    tauI = CmI / gLeakI  # Membrane time constant of inhibitory neurons
     Vl = -70.0 * mV  # Resting potential
     Vt = -50.0 * mV  # Spiking threshold
     Vr = -55.0 * mV  # Reset potential
@@ -231,13 +227,12 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     extinputE3 = PoissonGroup(N_DN, rates=nu_ext)
     extinputI = PoissonGroup(NI, rates=nu_ext)
     eqsE = """
-    dV/dt = (-gea*(V-VrevE) - gen*(V-VrevE)/(1.0+exp(-V/mV*0.062)/3.57) - gi*(V-VrevI) - (V-Vl)) / (tau): volt (unless refractory)
+    dV/dt = (-gea*(V-VrevE) - gen*(V-VrevE)/(1.0+exp(-V/mV*0.062)/3.57) - gi*(V-VrevI) - (V-Vl)) / tauE: volt (unless refractory)
     dgea/dt = -gea/(tau_AMPA) : 1
     dgi/dt = -gi/(tau_GABA) : 1
     dspre/dt = -spre/(tau_NMDA_decay)+alpha_NMDA*xpre*(1-spre) : 1
     dxpre/dt= -xpre/(tau_NMDA_rise) : 1
     gen = gEE_NMDA/gLeakE*(w_1 * sE1 + w_2 * sE2 + w_3 * sE3) : 1
-    tau : second
     group_label : integer (constant)
     w_1 : 1 (constant)
     w_2 : 1 (constant)
@@ -247,15 +242,14 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     sE3 : 1 (linked)
         """
     eqsI = """
-        dV/dt = (-gea*(V-VrevE) - gen*(V-VrevE)/(1.0+exp(-V/mV*0.062)/3.57) - gi*(V-VrevI) - (V-Vl)) / (tau): volt (unless refractory)
-        dgea/dt = -gea/(tau_AMPA) : 1
-        dgi/dt = -gi/(tau_GABA) : 1
-        gen = gEI_NMDA/gLeakI * (sE1 + sE2 + sE3) : 1
-        tau : second
-        sE1 : 1 (linked)
-        sE2 : 1 (linked)
-        sE3 : 1 (linked)
-        """
+    dV/dt = (-gea*(V-VrevE) - gen*(V-VrevE)/(1.0+exp(-V/mV*0.062)/3.57) - gi*(V-VrevI) - (V-Vl)) / tauI: volt (unless refractory)
+    dgea/dt = -gea/(tau_AMPA) : 1
+    dgi/dt = -gi/(tau_GABA) : 1
+    gen = gEI_NMDA/gLeakI * (sE1 + sE2 + sE3) : 1
+    sE1 : 1 (linked)
+    sE2 : 1 (linked)
+    sE3 : 1 (linked)
+    """
 
     # Set up the integration circuit
     decisionE = NeuronGroup(
@@ -276,8 +270,6 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
         reset="V=Vr",
         refractory=tau_refI,
     )
-    decisionE.tau = CmE / gLeakE
-    decisionI.tau = CmI / gLeakI
     decisionE1 = decisionE[:N_D1]
     decisionE2 = decisionE[N_D1 : N_D1 + N_D2]
     decisionE3 = decisionE[N_D1 + N_D2 :]
@@ -337,40 +329,6 @@ def make_integration_circuit():  # Layer 2, with some biological plausibility.
     decisionE.w_1['group_label == 3'] = 1.0
     decisionE.w_2['group_label == 3'] = 1.0
     decisionE.w_3['group_label == 3'] = 1.0
-
-
-    # NMDA_sum_E = Synapses(decisionE, decisionE,
-    #                     """
-    #                     w : 1
-    #                     gen_post = gEE_NMDA/gLeakE*w*spre_pre : 1 (summed)
-    #                     """, name='nmda_sum_E', namespace=locals())
-    # NMDA_sum_E.connect()
-    # NMDA_sum_E.w[decisionE1, decisionE1] = w_p
-    # NMDA_sum_E.w[decisionE2, decisionE1] = w_m
-    # NMDA_sum_E.w[decisionE3, decisionE1] = w_m
-    # NMDA_sum_E.w[decisionE1, decisionE2] = w_m
-    # NMDA_sum_E.w[decisionE2, decisionE2] = w_p
-    # NMDA_sum_E.w[decisionE3, decisionE2] = w_m
-    # NMDA_sum_E.w[: , decisionE3] = 1.0
-    #
-    # NMDA_sum_I = Synapses(decisionE, decisionI,
-    #                     "gen_post = gEE_NMDA/gLeakI*spre_pre : 1 (summed)",
-    #                     name='nmda_sum_I', namespace=locals())
-    # NMDA_sum_I.connect()
-    #
-    # spre_all = np.asarray(decisionE.spre)
-    # genE_all = np.asarray(decisionE.gen)
-    # genI_all = np.asarray(decisionI.gen)
-    # @network_operation(when="start")  # NMDA calculations
-    # def update_nmda():
-    #     sE1 = np.sum(spre_all[:N_D1])
-    #     sE2 = np.sum(spre_all[N_D1:N_D1 + N_D2])
-    #     sE3 = np.sum(spre_all[N_D1 + N_D2:])
-    #     genE_all[:N_D1] = gEE_NMDA / gLeakE * (w_p * sE1 + w_m * sE2 + w_m * sE3)
-    #     genE_all[N_D1:N_D1 + N_D2] = gEE_NMDA / gLeakE * (w_m * sE1 + w_p * sE2 + w_m * sE3)
-    #     genE_all[N_D1 + N_D2:] = gEE_NMDA / gLeakE * (sE1 + sE2 + sE3)
-    #     genI_all[:] = gEI_NMDA / gLeakI * (sE1 + sE2 + sE3)
-
 
     # DI to DE
     C_DI_DE = Synapses(decisionI, decisionE, "w: 1", on_pre="gi+=w", namespace=locals())
